@@ -1,38 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/apiClient';
+import { useAuth } from '../context/AuthContext'; // Import useAuth
 
-// We will only allow SuperAdmin to create Head or Co-head roles
-const ROLE_TYPES = ['Head', 'Co-head', 'Member'];
+// SuperAdmins can create 'Head'
+const SUPER_ADMIN_ROLES = ['Head', 'Co-head', 'Member'];
+// Heads can only create 'Co-head' or 'Member'
+const HEAD_ROLES = ['Co-head', 'Member'];
 
 const RegisterMemberPage = () => {
+  const { admin } = useAuth(); // Get the logged-in admin
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Form state
+  // Determine which roles this user is allowed to create
+  const availableRoles = admin.Role === 'SuperAdmin' ? SUPER_ADMIN_ROLES : HEAD_ROLES;
+
   const [formData, setFormData] = useState({
     Student_ID: '',
     Name: '',
     Password: '',
     ConfirmPassword: '',
-    Role: ROLE_TYPES[0],
+    Role: availableRoles[0], // Default to the first available role
     Team_ID: '',
   });
   
   const navigate = useNavigate();
 
-  // Fetch teams for the dropdown
   useEffect(() => {
     const fetchTeams = async () => {
       try {
         setLoading(true);
         const { data } = await apiClient.get('/teams');
         setTeams(data);
-        if (data.length > 0) {
-          // Set default team ID
-          setFormData(prev => ({...prev, Team_ID: data[0].Team_ID}));
+        
+        if (admin.Role === 'SuperAdmin') {
+          // SuperAdmin can assign to any team, default to first in list
+          if (data.length > 0) {
+            setFormData(prev => ({...prev, Team_ID: data[0].Team_ID}));
+          }
+        } else {
+          // Head/Co-head is locked to their own team
+          setFormData(prev => ({...prev, Team_ID: admin.Team_ID}));
         }
       } catch (err) {
         setError('Failed to load teams.');
@@ -41,7 +52,7 @@ const RegisterMemberPage = () => {
       }
     };
     fetchTeams();
-  }, []);
+  }, [admin.Role, admin.Team_ID]); // Depend on admin role
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,15 +79,15 @@ const RegisterMemberPage = () => {
         Student_ID: formData.Student_ID,
         Name: formData.Name,
         Role: formData.Role,
-        Team_ID: formData.Team_ID,
+        Team_ID: formData.Team_ID, // Backend logic will handle this
         Password: formData.Password,
       });
       
       setSuccess(`Successfully registered new member: ${formData.Name}`);
-      // Clear the form
       setFormData({
         Student_ID: '', Name: '', Password: '', ConfirmPassword: '',
-        Role: ROLE_TYPES[0], Team_ID: teams.length > 0 ? teams[0].Team_ID : '',
+        Role: availableRoles[0],
+        Team_ID: admin.Role === 'SuperAdmin' ? (teams.length > 0 ? teams[0].Team_ID : '') : admin.Team_ID,
       });
 
     } catch (err) {
@@ -89,7 +100,7 @@ const RegisterMemberPage = () => {
     <div>
       <h1 className="text-3xl font-bold text-gray-900">Register New Member</h1>
       <p className="mt-2 text-gray-600">
-        Use this form to create new 'Head' or 'Co-head' accounts.
+        Use this form to create new member accounts.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 p-6 max-w-lg bg-white shadow rounded-lg">
@@ -114,26 +125,44 @@ const RegisterMemberPage = () => {
             value={formData.ConfirmPassword} onChange={handleChange} required
             className="w-full px-3 py-2 border border-gray-300 rounded-md"
           />
+          
+          <label className="block text-sm font-medium text-gray-700">Role</label>
           <select
             name="Role" value={formData.Role} onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md"
           >
-            {ROLE_TYPES.map(role => <option key={role} value={role}>{role}</option>)}
+            {availableRoles.map(role => <option key={role} value={role}>{role}</option>)}
           </select>
+
+          <label className="block text-sm font-medium text-gray-700">Team</label>
           <select
             name="Team_ID" value={formData.Team_ID} onChange={handleChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            // A SuperAdmin can change the team, a Head/Co-head cannot.
+            disabled={admin.Role !== 'SuperAdmin'}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-md ${admin.Role !== 'SuperAdmin' ? 'bg-gray-100' : ''}`}
           >
-            <option value="">-- Select a Team --</option>
             {loading ? (
               <option disabled>Loading teams...</option>
             ) : (
-              teams.map(team => (
-                <option key={team.Team_ID} value={team.Team_ID}>
-                  {team.Team_Name}
-                </option>
-              ))
+              admin.Role === 'SuperAdmin' ? (
+                // SuperAdmin sees all teams
+                <>
+                  <option value="">-- Select a Team --</option>
+                  {teams.map(team => (
+                    <option key={team.Team_ID} value={team.Team_ID}>
+                      {team.Team_Name}
+                    </option>
+                  ))}
+                </>
+              ) : (
+                // Head/Co-head only sees their own team
+                teams.filter(t => t.Team_ID === admin.Team_ID).map(team => (
+                  <option key={team.Team_ID} value={team.Team_ID}>
+                    {team.Team_Name}
+                  </option>
+                ))
+              )
             )}
           </select>
         </div>

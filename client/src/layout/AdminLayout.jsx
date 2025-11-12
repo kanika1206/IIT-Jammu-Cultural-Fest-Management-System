@@ -3,7 +3,8 @@ import { Outlet, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const AdminLayout = () => {
-  const { admin, logoutAdmin } = useAuth(); // We use 'admin' now
+  // This line gets the admin object from context
+  const { admin, logoutAdmin } = useAuth(); 
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -75,15 +76,16 @@ const AdminLayout = () => {
               </Link>
             </li>
             
-            {/* --- THIS IS THE NEW LINK (SuperAdmin only) --- */}
-            {admin?.Role === 'SuperAdmin' && (
+            {/* --- THIS IS THE LOGIC --- */}
+            {/* It checks if admin exists AND what role it has. */}
+            {(admin?.Role === 'SuperAdmin' || admin?.Role === 'Head' || admin?.Role === 'Co-head') && (
               <li className="mb-2 border-t border-gray-700 mt-2 pt-2">
                 <Link to="/admin/members/register" className="block px-4 py-2 rounded text-yellow-400 hover:bg-gray-700">
                   Register New Member
                 </Link>
               </li>
             )}
-            {/* --- END OF NEW LINK --- */}
+            {/* --- END OF LOGIC --- */}
           </ul>
         </nav>
       </aside>
@@ -97,6 +99,7 @@ const AdminLayout = () => {
                 <span className="font-bold text-xl text-blue-600">IIT Jammu Fest</span>
               </div>
               <div className="flex items-center">
+                {/* This line also uses the admin object */}
                 <span className="mr-4">Welcome, {admin?.Name || 'Admin'} ({admin?.Role})</span>
                 <button
                   onClick={handleLogout}

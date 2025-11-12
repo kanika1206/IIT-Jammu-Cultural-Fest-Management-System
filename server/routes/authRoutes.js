@@ -6,10 +6,10 @@ const {
   loginParticipant, // Import the new function
 } = require('../controllers/authController');
 
-const { protect, isSuperAdmin } = require('../middleware/authMiddleware');
+const { protect, isAdmin } = require('../middleware/authMiddleware');
 
 // === Admin Auth Routes ===
-router.post('/member/register', protect, isSuperAdmin, registerStudentMember);
+router.post('/member/register', protect, isAdmin, registerStudentMember);
 router.post('/member/login', loginStudentMember);
 
 // === Participant Auth Route ===
